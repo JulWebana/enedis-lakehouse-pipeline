@@ -1,4 +1,4 @@
-# Pipeline de donnees Enedis - Architecture Lakehouse Bronze / Silver / Gold
+# Pipeline de données Enedis - Architecture Lakehouse Bronze / Silver / Gold
 
 Pipeline de données complet sur les donnees Open Data Enedis, construit sur
 Databricks Community Edition avec PySpark et Delta Lake.
