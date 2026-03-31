@@ -187,3 +187,6 @@ implique certaines contraintes : pas d'acces DBFS root, pas de support Scala,
 et des ressources de calcul limitees. En environnement de production, le pipeline
 beneficierait de partitionnement Delta, de workflows orchestres (Databricks Jobs)
 et d'un catalogue Unity Catalog pour la gouvernance des donnees.
+
+
+Remarque : Les visualisations Matplotlib que j’ai produites sont uniquement destinées à la démonstration. En production, les tables Gold seraient directement connectées à Power BI, Tableau ou tout autre outil de visualisation via le connecteur Databricks, sans passer par une génération de graphiques côté Python
