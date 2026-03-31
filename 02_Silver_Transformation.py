@@ -1,5 +1,4 @@
 # Databricks notebook source
-
 # MAGIC %md
 # MAGIC # 02 - Silver Layer : Transformation, Qualite et UDFs Python
 # MAGIC
@@ -18,7 +17,7 @@
 
 # COMMAND ----------
 
-# --- Imports Python standard ---
+# --- Imports Python ---
 
 import unicodedata  # Module Python pour normaliser les caracteres Unicode (ex: supprimer les accents)
 import re           # Module Python pour les expressions regulieres (nettoyage de chaines de caracteres)
@@ -54,7 +53,7 @@ print("Configuration Silver chargee")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Chargement des donnees Bronze
+# MAGIC ## Chargement des données Bronze
 
 # COMMAND ----------
 
@@ -75,7 +74,7 @@ df_bronze.limit(3).display()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## UDFs Python - Categorisation energetique
+# MAGIC ## UDFs Python - Catégorisation énergetique
 # MAGIC
 # MAGIC Une UDF (User Defined Function) est une fonction personnalisee que l'on enregistre
 # MAGIC dans Spark pour l'utiliser comme n'importe quelle fonction SQL sur les colonnes d'un DataFrame.
@@ -112,7 +111,7 @@ def categorize_consumption(consumption):
     """
 
     # Si la valeur est nulle (donnee absente ou non renseignee), on retourne "INCONNU"
-    # En Python, None est l'equivalent du null Scala/Java
+    
     if consumption is None:
         return "INCONNU"
 
@@ -276,18 +275,18 @@ for c in df_work.columns:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Controles qualite des donnees (Data Quality)
+# MAGIC ## Controles qualité des données (Data Quality)
 
 # COMMAND ----------
 
 def run_data_quality_checks(df, dataset_name: str) -> list:
     """
-    Execute une serie de controles qualite sur le DataFrame.
+    Execute une serie de controles qualité sur le DataFrame.
 
-    Controles appliques :
+    Controles appliqués :
       1. Taux de valeurs nulles par colonne
-      2. Presence de doublons
-      3. Valeurs negatives dans les colonnes numeriques
+      2. Présence de doublons
+      3. Valeurs négatives dans les colonnes numeriques
 
     Parametres :
         df           : DataFrame Spark a verifier
@@ -394,39 +393,38 @@ quality_report = run_data_quality_checks(df_work, DATASET_NAME)
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Detection dynamique des colonnes metier et cast des types
+# MAGIC ## Détection dynamique des colonnes métier et cast des types
 
 # COMMAND ----------
 
+# --- Fonction de detection des colonnes par mots-cles ---
 def detect_col(df, *keywords):
     """
-    Cherche dans les colonnes du DataFrame la premiere colonne
-    dont le nom contient l'un des mots-cles fournis.
-
-    Utile car les noms de colonnes Enedis peuvent varier selon les datasets.
+    Detecte la premiere colonne du DataFrame dont le nom contient
+    l'un des mots-cles fournis (recherche insensible a la casse).
 
     Parametres :
-        df       : DataFrame Spark a inspecter
-        keywords : mots-cles a rechercher (ordre de priorite)
+        df       : DataFrame Spark
+        keywords : mots-cles a tester, par ordre de priorite
 
     Retourne :
-        Le nom de la premiere colonne correspondante, ou None si aucune trouvee
+        Nom de la colonne trouvee, ou None
     """
     for kw in keywords:
-        # Recherche insensible a la casse : on met le nom de colonne en minuscule avant de comparer
         match = next((c for c in df.columns if kw in c.lower()), None)
         if match:
-            return match  # On retourne le premier match trouve
-    return None  # Aucune colonne correspondante
+            return match
+    return None
 
+# Assignation manuelle des colonnes metier d'apres le vrai schema Enedis
+# Les noms reels ne correspondent pas aux mots-cles generiques de detect_col
+# On assigne donc directement les noms de colonnes confirmes dans la table Bronze
+conso_col  = "total_energie_soutiree_wh"  # Colonne de consommation electrique en Wh
+annee_col  = None                          # Pas de colonne annee directe : sera extraite depuis horodate
+region_col = "region"                      # Colonne du libelle de region
+sites_col  = "nb_points_soutirage"         # Colonne du nombre de points de soutirage
 
-# Detection de chaque colonne metier importante
-conso_col  = detect_col(df_work, "conso")           # Colonne de consommation electrique (en MWh)
-annee_col  = detect_col(df_work, "annee", "year")   # Colonne de l'annee
-region_col = detect_col(df_work, "libelle_region", "region")  # Colonne du libelle de region
-sites_col  = detect_col(df_work, "nb_sites", "nombre_de_sites", "sites")  # Colonne du nombre de sites
-
-print("Colonnes metier detectees :")
+print("Colonnes metier assignees :")
 print(f"  Consommation : {conso_col}")
 print(f"  Annee        : {annee_col}")
 print(f"  Region       : {region_col}")
@@ -440,10 +438,6 @@ if conso_col:
     # cast(DoubleType()) convertit la colonne en nombre a virgule flottante
     # Necessaire pour les calculs de somme, moyenne, etc.
     df_work = df_work.withColumn(conso_col, col(conso_col).cast(DoubleType()))
-
-if annee_col:
-    # cast(IntegerType()) convertit l'annee en entier
-    df_work = df_work.withColumn(annee_col, col(annee_col).cast(IntegerType()))
 
 if sites_col:
     # cast("long") convertit en Long (entier 64 bits) car le nombre de sites peut etre grand
@@ -529,7 +523,7 @@ print(f"Lignes Silver apres nettoyage et RGPD : {df_silver.count():,}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Ecriture en Delta Lake Silver
+# MAGIC ## Écriture en Delta Lake Silver
 
 # COMMAND ----------
 
@@ -574,4 +568,4 @@ df_silver.limit(5).display()
 # MAGIC | RGPD | k-anonymisation : suppression des lignes avec moins de 5 sites |
 # MAGIC | Stockage | Delta Lake Silver, partitionne par annee |
 # MAGIC
-# MAGIC Passer au notebook 03_Gold_Aggregations pour produire les KPIs metier.
+# MAGIC Nous arrivons ainsi à la fin du step Silver. Passeons au notebook 03_Gold_Aggregations pour produire les KPIs metier.

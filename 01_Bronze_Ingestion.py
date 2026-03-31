@@ -1,15 +1,13 @@
 # Databricks notebook source
-
 # MAGIC %md
 # MAGIC # 01 - Bronze Layer : Ingestion des donnees Open Data Enedis
 # MAGIC
-# MAGIC Architecture Lakehouse : Bronze (Raw) > Silver (Cleaned) > Gold (Business)
+# MAGIC Ce notebook télécharge les données brutes depuis l’API Open Data Enedis
+# MAGIC et les stocke au format Delta Lake, sans aucune transformation.
 # MAGIC
-# MAGIC Ce notebook telecharge les donnees brutes depuis l'API Open Data Enedis
-# MAGIC et les stocke en tables Delta Lake managees sans aucune transformation.
-# MAGIC
-# MAGIC Principe de la couche Bronze : on stocke tout, tel quel, avec les metadonnees d'ingestion.
-# MAGIC On ne modifie jamais les donnees brutes a ce stade.
+# MAGIC Principe de la couche Bronze :  
+# MAGIC On stocke toutes les données telles quelles, accompagnées des métadonnées d’ingestion.
+# MAGIC À ce stade, les données brutes ne sont jamais modifiées.
 
 # COMMAND ----------
 
@@ -35,31 +33,31 @@ from datetime import datetime  # Module Python standard pour manipuler les dates
 
 # COMMAND ----------
 
-# --- Definition des datasets a ingerer depuis l'API Open Data Enedis ---
-# Chaque entree est un dictionnaire avec l'URL de telechargement et une description lisible
+# --- Definition des datasets à ingérer depuis l'API Open Data Enedis ---
+# Chaque entrée est un dictionnaire avec l'URL de telechargement et une description lisible
 
 DATASETS = {
     "conso_inf36_region": {
         # URL de l'API Enedis pour le dataset de consommation residentielle inferieure a 36 kVA par region
         # Le format CSV est demande via le chemin /exports/csv
-        "url": "https://data.enedis.fr/api/explore/v2.1/catalog/datasets/conso-inf36-region/exports/csv",
+        "url": "https://opendata.enedis.fr/api/explore/v2.1/catalog/datasets/conso-inf36-region/exports/csv",
         "description": "Consommation residentielle inferieure a 36 kVA par region (annuelle)"
     },
     "conso_sup36_region": {
         # Meme logique pour la consommation professionnelle superieure a 36 kVA
-        "url": "https://data.enedis.fr/api/explore/v2.1/catalog/datasets/conso-sup36-region/exports/csv",
+        "url": "https://opendata.enedis.fr/api/explore/v2.1/catalog/datasets/conso-sup36-region/exports/csv",
         "description": "Consommation professionnelle superieure a 36 kVA par region (annuelle)"
     }
 }
 
 # Affichage de confirmation dans les logs du notebook
-print("Configuration chargee")
-print(f"Datasets a ingerer : {list(DATASETS.keys())}")
+print("Configuration chargée")
+print(f"Datasets à ingerer : {list(DATASETS.keys())}")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Fonction d'ingestion generique
+# MAGIC ## Fonction d'ingestion générique
 
 # COMMAND ----------
 
@@ -82,18 +80,18 @@ def ingest_dataset(dataset_name: str, dataset_config: dict) -> dict:
         dict contenant les metadonnees de l'ingestion (statut, nb lignes, duree...)
     """
 
-    # On enregistre l'heure de debut pour mesurer la duree totale de l'ingestion
+    # On enregistre l'heure de debut pour mesurer la durée totale de l'ingestion
     ingestion_start = datetime.now()
 
     print(f"Ingestion en cours : {dataset_name}")
     print(f"  Source URL : {dataset_config['url']}")
 
-    # --- Etape 1 : Telechargement des donnees depuis l'API ---
+    # --- Etape 1 : Téléchargement des donnees depuis l'API ---
 
     # Parametres de la requete HTTP GET envoyee a l'API Enedis
     params = {
-        "limit": 15000,   # 15000 lignes : couvre les 12 regions metropolitaines sur 3 ans
-        "delimiter": ";"  # Le CSV utilise le point-virgule comme separateur (standard francais)
+        "limit": 15000,      # 15000 pour vérifier que le pipeline fonctionne correctement.Une fois les tests validés, on repassera à -1, ce qui va récupérer l’ensemble des lignes sans aucune limite.
+        "delimiter": ";"  
     }
 
     # Envoi de la requete HTTP GET vers l'URL de l'API
@@ -185,25 +183,24 @@ def ingest_dataset(dataset_name: str, dataset_config: dict) -> dict:
 
 # COMMAND ----------
 
-# Liste qui va accumuler les metadonnees de chaque ingestion (succes ou echec)
-# Cela permet de generer un rapport consolide a la fin
+# Liste qui va accumuler les metadonnées de chaque ingestion (succes ou echec)
+# Cela permet de générer un rapport consolidé à la fin
 ingestion_log = []
 
 # Boucle sur chaque dataset defini dans le dictionnaire DATASETS
 for ds_name, ds_config in DATASETS.items():
     try:
-        # Appel de la fonction d'ingestion pour ce dataset
-        meta = ingest_dataset(ds_name, ds_config)
-
-        # Ajout des metadonnees de succes dans la liste de logs
-        ingestion_log.append(meta)
+        
+        meta = ingest_dataset(ds_name, ds_config) # Appel de la fonction d'ingestion pour ce dataset
+       
+        ingestion_log.append(meta)  # Ajout des metadonnees de succes dans la liste de logs
 
     except Exception as exc:
-        # En cas d'erreur (reseau, API indisponible, donnees malformees...),
-        # on ne fait pas planter tout le pipeline : on logue l'echec et on passe au suivant
+        # En cas d'erreur (reseau, API indisponible, données malformées...),
+        # on ne fait pas planter tout le pipeline : on logue l'échec et on passe au suivant
         print(f"Erreur pour {ds_name} : {exc}")
 
-        # Ajout des metadonnees d'echec dans la liste de logs
+        # Ajout des metadonnées d'échec dans la liste de logs
         ingestion_log.append({
             "dataset":   ds_name,
             "status":    "FAILED",
@@ -211,13 +208,13 @@ for ds_name, ds_config in DATASETS.items():
             "timestamp": datetime.now().isoformat()
         })
 
-# --- Affichage du rapport d'ingestion consolide ---
+# --- Affichage du rapport d'ingestion consolidé ---
 print("\n" + "="*60)
 print("RAPPORT D'INGESTION - COUCHE BRONZE")
 print("="*60)
 
 for log in ingestion_log:
-    # Recuperation du nombre de lignes avec valeur par defaut "N/A" si l'ingestion a echoue
+    # Récupération du nombre de lignes avec valeur par défaut "N/A" si l'ingestion a échoué
     rows = f"{log.get('rows', 'N/A'):,}" if isinstance(log.get('rows'), int) else "N/A"
     secs = log.get('duration_seconds', '-')
     print(f"  [{log['status']}]  {log['dataset']:<35} | {rows:>10} lignes | {secs}s")
@@ -225,31 +222,26 @@ for log in ingestion_log:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Verification - Apercu des donnees Bronze
+# MAGIC ## Vérification - Aperçu des données Bronze
 
 # COMMAND ----------
 
-# On relit chaque table depuis le catalogue pour confirmer que les donnees ont bien ete persistees
+# On relit chaque table depuis le catalogue pour confirmer que les données ont bien été persistées
 for ds_name in DATASETS.keys():
 
-    # Nom de la table a relire : meme convention bronze_ que lors de l'ecriture
-    table_name = f"bronze_{ds_name}"
+    table_name = f"bronze_{ds_name}"  # Nom de la table a relire : meme convention bronze_ que lors de l'ecriture
 
     try:
-        # spark.read.table() lit une table enregistree dans le catalogue Databricks
-        # C'est l'equivalent de spark.read.format("delta").load(chemin) mais pour les tables managees
         df = spark.read.table(table_name)
 
         print(f"\nTable : {table_name}")
         print(f"  Lignes   : {df.count():,}")  # count() declenche une action Spark (parcourt toutes les partitions)
         print(f"  Colonnes : {df.columns}")
 
-        # display() est une fonction Databricks qui affiche le DataFrame sous forme de tableau HTML interactif
-        # limit(5) recupere uniquement les 5 premieres lignes pour l'apercu (evite de tout charger)
         df.limit(5).display()
 
     except Exception as exc:
-        # Si la lecture echoue (table inexistante, ingestion ratee precedemment...)
+        # Si la lecture echoue (table inexistante, ingestion ratée precedemment...)
         print(f"Impossible de lire {table_name} : {exc}")
 
 # COMMAND ----------
@@ -261,6 +253,8 @@ for ds_name in DATASETS.keys():
 # MAGIC |--------|-------------|----------------|-------------------|----------------------|
 # MAGIC | Bronze | Delta Lake  | Aucune (raw)   | Table managee     | _ingestion_timestamp, _ingestion_date, _source_dataset, _source_url |
 # MAGIC
-# MAGIC Tables creees : bronze_conso_inf36_region, bronze_conso_sup36_region
+# MAGIC Tables créées : bronze_conso_inf36_region, bronze_conso_sup36_region
 # MAGIC
-# MAGIC Passer au notebook 02_Silver_Transformation pour nettoyer et enrichir ces donnees.
+# MAGIC
+# MAGIC
+# MAGIC Nous arrivons ainsi à la fin du step Bronze. Passons maintenant au notebook 02_Silver_Transformation pour nettoyer et enrichir ces données.

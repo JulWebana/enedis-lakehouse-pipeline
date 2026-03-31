@@ -1,5 +1,4 @@
 # Databricks notebook source
-
 # MAGIC %md
 # MAGIC # 03 - Gold Layer : Agregations Metier et KPIs
 # MAGIC
@@ -45,12 +44,12 @@ from pyspark.sql.types import DoubleType  # Type virgule flottante double precis
 # Utilise pour construire les noms des tables managees (silver_, gold_)
 DATASET_NAME = "conso_inf36_region"
 
-print("Configuration Gold chargee")
+print("Configuration Gold chargée")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Chargement des donnees Silver
+# MAGIC ## Chargement des données Silver
 
 # COMMAND ----------
 
@@ -61,53 +60,46 @@ df_silver = spark.read.table(f"silver_{DATASET_NAME}")
 print(f"Lignes Silver chargees : {df_silver.count():,}")
 print(f"Colonnes disponibles : {df_silver.columns}")
 
-# Apercu pour verifier que les colonnes Silver sont bien presentes
+# Apercu pour verifier que les colonnes Silver sont bien présentes
 df_silver.limit(3).display()
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## Detection dynamique des colonnes
-
-# COMMAND ----------
-
-def detect_col(df, *keywords):
-    """
-    Detecte la premiere colonne du DataFrame dont le nom contient
-    l'un des mots-cles fournis (recherche insensible a la casse).
-
-    Parametres :
-        df       : DataFrame Spark
-        keywords : mots-cles a tester, par ordre de priorite
-
-    Retourne :
-        Nom de la colonne trouvee, ou None
-    """
-    for kw in keywords:
-        match = next((c for c in df.columns if kw in c.lower()), None)
-        if match:
-            return match
-    return None
-
-
-# Identification des colonnes metier necessaires aux agregations
-region_col    = detect_col(df_silver, "libelle_region", "region")    # Colonne du nom de region
-annee_col     = detect_col(df_silver, "annee", "year")               # Colonne de l'annee
-conso_col     = detect_col(df_silver, "conso")                       # Colonne de consommation (MWh)
-sites_col     = detect_col(df_silver, "nb_sites", "nombre_de_sites") # Colonne du nombre de sites
-categorie_col = "categorie_consommation"                              # Colonne creee par l'UDF Scala au notebook 02
-
-print("Colonnes detectees pour les agregations :")
-print(f"  Region       : {region_col}")
-print(f"  Annee        : {annee_col}")
-print(f"  Consommation : {conso_col}")
-print(f"  Nb sites     : {sites_col}")
-print(f"  Categorie    : {categorie_col if categorie_col in df_silver.columns else 'NON DISPONIBLE'}")
+# Diagnostic : affichage des vraies colonnes de la table Silver
+print("=== COLONNES REELLES DE LA TABLE SILVER ===")
+for c in df_silver.columns:
+    print(f"  - {c}")
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## KPI 1 - Consommation par region et par annee
+# MAGIC ## Détection dynamique des colonnes
+
+# COMMAND ----------
+
+from pyspark.sql.functions import year, to_timestamp
+
+# Extraction de l'annee depuis horodate (format ISO 8601 : "2024-06-30T22:00:00+00:...")
+# to_timestamp() convertit la chaine de caracteres en type timestamp Spark
+# year() extrait ensuite l'annee sous forme d'entier (ex: 2024)
+df_silver = df_silver.withColumn("annee", year(to_timestamp(col("horodate"))))
+
+# Assignation manuelle des colonnes metier d'apres le vrai schema Enedis
+region_col    = "region"                     # Nom de la region
+annee_col     = "annee"                      # Annee extraite depuis horodate
+conso_col     = "total_energie_soutiree_wh"  # Consommation totale en Wh
+sites_col     = "nb_points_soutirage"        # Nombre de points de soutirage
+categorie_col = "categorie_consommation"     # Colonne creee par l'UDF du notebook 02
+
+print(f"region_col  = {region_col}")
+print(f"annee_col   = {annee_col}")
+print(f"conso_col   = {conso_col}")
+print(f"sites_col   = {sites_col}")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## KPI 1 - Consommation par région et par année
 
 # COMMAND ----------
 
@@ -154,16 +146,40 @@ if region_col and annee_col and conso_col:
             )
         )
 
-    # Tri par region puis par annee pour une lecture ordonnee
+    # Tri par region puis par annee pour une lecture ordonnée
     df_kpi_region = df_kpi_region.orderBy(region_col, annee_col)
 
-    print("KPI 1 - Consommation par region et par annee :")
+    print("KPI 1 - Consommation par région et par année :")
     df_kpi_region.display()
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## KPI 2 - Evolution temporelle nationale avec variation annuelle (YoY)
+# MAGIC ## Interpretation - KPI 1
+# MAGIC
+# MAGIC Avec 15 000 enregistrements, 12 régions métropolitaines sont représentées sur 3 années (2023, 2024, 2025) soit 36 combinaisons région × année.
+# MAGIC
+# MAGIC Auvergne–Rhône-Alpes reste la région la plus consommatrice, avec 23,5 milliards de Wh en 2024 soit environ trois fois la consommation de la Bretagne ou du Grand Est sur la même année. Cet écart, à mon avis, reflète son poids industriel et démographique.
+# MAGIC
+# MAGIC La hausse systématique de la consommation en 2024 par rapport à 2023 est visible dans toutes les régions. Le nombre d’enregistrements passe de 492 à 656 en 2024 ce qui suggère que l’API retourne davantage de points de mesure pour cette année — probablement en raison d’un découpage temporel plus fin ou d’une couverture réseau plus complète.
+# MAGIC
+# MAGIC L’indicateur conso_par_site_mwh met en évidence des disparités régionales intéressantes : Centre‑Val de Loire affiche la valeur la plus élevée en 2024 (350 Wh/site). 
+# MAGIC
+# MAGIC A mon avis, cela peut s’expliquer par une proportion plus importante de chauffage électrique dans l’habitat rural par opposition aux grandes agglomérations où la diversité des modes de chauffage est plus forte.
+
+# COMMAND ----------
+
+
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## KPI 2 - Évolution temporelle nationale avec variation annuelle (YoY)
 
 # COMMAND ----------
 
@@ -230,8 +246,19 @@ if annee_col and conso_col:
         .drop("conso_annee_precedente_twh")
     )
 
-    print("KPI 2 - Evolution nationale et variation Year-over-Year :")
+    print("KPI 2 - Évolution nationale et variation Year-over-Year :")
     df_kpi_tendance.display()
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Interpétation - KPI 2
+# MAGIC
+# MAGIC
+# MAGIC Sur 15 000 enregistrements couvrant 12 régions, la consommation nationale agrégée atteint 89047 TWh en 2023, 134190 TWh en 2024 (+50,7%) puis 82175 TWh en 2025 (–38,76%).
+# MAGIC
+# MAGIC La hausse observée en 2024 est cohérente avec les constats du KPI 1 : le nombre de points de mesure passe de 4500 à 6000, ce qui indique que l’API fournit une granularité temporelle plus fine ou une couverture réseau plus complète pour cette année. Une partie de la variation YoY reflète donc la structure du dataset et non uniquement une évolution réelle de la consommation sur le réseau.
+# MAGIC
 
 # COMMAND ----------
 
@@ -240,10 +267,21 @@ if annee_col and conso_col:
 
 # COMMAND ----------
 
-# Ce KPI exploite la colonne "categorie_consommation" produite par l'UDF Scala du notebook 02
+# Ce KPI exploite la colonne "categorie_consommation" produite par l'UDF Python du notebook 02
+# Si cette colonne est absente, on utilise "profil" comme categorie de substitution
 # Il repond a : "Quelle part du volume total est consommee par chaque categorie ?"
 
-if categorie_col in df_silver.columns and conso_col:
+# Determination de la colonne categorie a utiliser
+if "categorie_consommation" in df_silver.columns:
+    cat_col = "categorie_consommation"
+elif "profil" in df_silver.columns:
+    # profil contient les types de consommateurs (ENT1, ENT2, ENT3...) definis par Enedis
+    cat_col = "profil"
+    print("Info : categorie_consommation absente, utilisation de 'profil' comme substitut")
+else:
+    cat_col = None
+
+if cat_col and conso_col:
 
     # Definition d'une fenetre globale (sans partition) pour calculer le total toutes categories
     # Cette fenetre couvre toutes les lignes du DataFrame : elle est utilisee pour le denominateur
@@ -251,10 +289,10 @@ if categorie_col in df_silver.columns and conso_col:
 
     df_kpi_categorie = (
         df_silver
-        .groupBy(categorie_col)
+        .groupBy(cat_col)
         .agg(
-            count("*").alias("nb_mesures"),                      # Nombre de mesures pour cette categorie
-            spark_sum(conso_col).alias("conso_totale_mwh")       # Consommation totale de la categorie
+            count("*").alias("nb_mesures"),                       # Nombre de mesures pour cette categorie
+            spark_sum(conso_col).alias("conso_totale_mwh")        # Consommation totale de la categorie
         )
         .withColumn("conso_totale_mwh", spark_round(col("conso_totale_mwh"), 2))
 
@@ -274,8 +312,23 @@ if categorie_col in df_silver.columns and conso_col:
         .orderBy(desc("conso_totale_mwh"))
     )
 
-    print("KPI 3 - Repartition par categorie de consommation :")
+    print("KPI 3 - Répartition par categorie de consommation :")
     df_kpi_categorie.display()
+
+else:
+    print("SKIP KPI 3 : aucune colonne categorie disponible")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Interpretation - KPI 3
+# MAGIC
+# MAGIC La colonne categorie_consommation est produite par l’UDF Python du notebook 02 qui classe chaque ligne selon son volume de consommation en trois niveaux : MODÉRÉE, ÉLEVÉE ou TRÈS ÉLEVÉE.
+# MAGIC
+# MAGIC La quasi‑totalité des enregistrements (99,99 %) se retrouve dans la catégorie TRÈS ÉLEVÉE. Cela s’explique par le fait que l’UDF a été conçue pour catégoriser des consommations individuelles (compteurs résidentiels exprimés en kWh) alors que les données Enedis utilisées ici sont des agrégats régionaux. Chaque ligne représente la somme de milliers de points de soutirage sur une région entière ce qui génère mécaniquement des volumes en milliards de Wh automatiquement classés dans la catégorie la plus élevée.
+# MAGIC
+# MAGIC La catégorie INCONNU (1 106 mesures avec consommation nulle) correspond aux lignes où la valeur total_energie_soutiree_wh est nulle ou absente dans la source empêchant l’UDF d’attribuer une catégorie.
+# MAGIC
 
 # COMMAND ----------
 
@@ -325,13 +378,28 @@ if region_col and conso_col and annee_col:
         .orderBy("classement")
     )
 
-    print(f"KPI 4 - Classement des regions ({derniere_annee}) :")
+    print(f"KPI 4 - Classement des régions ({derniere_annee}) :")
     df_kpi_top_regions.display()
 
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Ecriture des tables Gold en Delta Lake
+# MAGIC ## Interpretation - KPI 4
+# MAGIC
+# MAGIC Le classement 2025 couvre 12 des 13 régions métropolitaines françaises. La seule région absente est vraisemblablement la Corse dont la faible population, à mon avis, génère trop peu de lignes dans le dataset avec limit = 15000.
+# MAGIC
+# MAGIC Auvergne–Rhône-Alpes confirme sa position de leader avec 14,3 milliards de Wh soit environ quatre fois la consommation de la Normandie (rang 12). Cet écart reflète les différences de tissu industriel, de densité de population et de profil de consommation entre les régions.
+# MAGIC
+# MAGIC L’Île‑de‑France se positionne au rang 2 avec 9,7 milliards de Wh un résultat beaucoup plus cohérent avec son poids démographique (12 millions d’habitants).
+# MAGIC
+# MAGIC La fonction rank() pour gérer automatiquement les ex‑æquo en attribuant le même rang à deux régions ayant une consommation identique.
+# MAGIC
+# MAGIC J’ai voulu intégrer ce KPI car il constitue selon moi un indicateur directement exploitable pour prioriser les investissements réseau et orienter la planification capacitaire régionale en identifiant clairement les zones les plus consommatrices et donc les plus critiques pour le dimensionnement du réseau.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Écriture des tables Gold en Delta Lake
 
 # COMMAND ----------
 
@@ -360,12 +428,12 @@ for table_name, df in gold_tables.items():
                                                   # (compatible Serverless, pas besoin d'acces DBFS)
         )
 
-        print(f"  [OK] {table_name:<40} -> table managee enregistree")
+        print(f"  [OK] {table_name:<40} -> table managée enregistrée")
 
     else:
         # Si le DataFrame n'a pas pu etre cree (colonne manquante, erreur precedente...)
         # on logue un avertissement mais on ne bloque pas les autres tables
-        print(f"  [SKIP] {table_name:<40} -> ignoree (donnees manquantes)")
+        print(f"  [SKIP] {table_name:<40} -> ignoree (données manquantes)")
 
 # COMMAND ----------
 
@@ -378,16 +446,23 @@ for table_name, df in gold_tables.items():
 # MAGIC     BRONZE  : donnees brutes Delta Lake + metadonnees d'ingestion
 # MAGIC          |
 # MAGIC          v
-# MAGIC     SILVER  : donnees nettoyees + UDFs Scala + Data Quality + RGPD
+# MAGIC     SILVER  : donnees nettoyées + UDFs Python + Data Quality + RGPD
 # MAGIC          |
 # MAGIC          v
 # MAGIC     GOLD    : KPIs metier prets pour exploitation BI / dashboards
 # MAGIC
-# MAGIC Competences techniques illustrees dans ce projet :
+# MAGIC Compétences techniques illustrées dans ce projet :
+# MAGIC
 # MAGIC   - Pipeline d'ingestion batch avec Delta Lake (Bronze)
+# MAGIC
 # MAGIC   - Transformations PySpark avec detection dynamique du schema (Silver)
-# MAGIC   - UDFs Scala cross-language enregistrees et appelees depuis Python (Silver)
+# MAGIC
+# MAGIC   - UDFs Python : categorisation energetique et score carbone (Silver)
+# MAGIC
 # MAGIC   - Controles qualite programmatiques avec rapport consolide (Silver)
+# MAGIC
 # MAGIC   - Conformite RGPD par k-anonymisation (Silver)
+# MAGIC
 # MAGIC   - Window Functions Spark pour les calculs de rang et de variation YoY (Gold)
+# MAGIC
 # MAGIC   - Architecture Lakehouse Bronze / Silver / Gold avec Delta Lake
