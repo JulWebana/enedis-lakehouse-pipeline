@@ -1,4 +1,4 @@
-# Pipeline de données Enedis - Architecture Lakehouse Bronze / Silver / Gold
+# Pipeline de donnees Enedis - Architecture Lakehouse Bronze / Silver / Gold
 
 Pipeline de données complet sur les donnees Open Data Enedis, construit sur
 Databricks Community Edition avec PySpark et Delta Lake.
@@ -150,3 +150,40 @@ dans l'ordre :
 | Gold   | kpi_tendance_nationale        | Evolution nationale YoY                  |
 | Gold   | kpi_categorie_distribution    | Répartition par catégorie                |
 | Gold   | kpi_top_regions               | Classement des regions 2025              |
+
+---
+
+## Limites du projet
+
+### Volume de donnees
+Le pipeline est configure avec `limit=15000` pour rester compatible avec les
+contraintes de Databricks Community Edition. Cela couvre 12 regions sur 13
+(la Corse est absente, trop peu representee dans l'echantillon). Sur le jeu
+complet (`limit=-1`), les 13 regions metropolitaines seraient toutes visibles.
+
+### Perimetre du dataset
+Seul le dataset `conso-inf36-region` (consommateurs <= 36 kVA) est analyse.
+Le dataset `conso-sup36-region` (grands consommateurs industriels) n'est pas
+inclus, ce qui explique notamment le classement inattendu de l'Ile-de-France
+dans certaines analyses partielles.
+
+### UDF de categorisation
+L'UDF `categorize_consumption_udf` a ete concue pour categoriser des
+consommations individuelles (compteurs residentiels en kWh). Appliquee sur
+des agregats regionaux (milliards de Wh), elle classe quasi systematiquement
+toutes les lignes en TRES ELEVEE. En production, les seuils seraient calibres
+sur la granularite reelle des donnees, ou la categorisation serait appliquee
+avant l'agregation.
+
+### Biais temporel
+Le nombre de points de mesure par annee n'est pas homogene (492 en 2023 et 2025,
+656 en 2024), ce qui amplifie artificiellement la consommation agregee de 2024.
+Les variations YoY observees sont donc partiellement liees a la structure des
+donnees et non uniquement a des tendances reelles de consommation.
+
+### Environnement
+Ce projet tourne sur Databricks Community Edition (mode Serverless), ce qui
+implique certaines contraintes : pas d'acces DBFS root, pas de support Scala,
+et des ressources de calcul limitees. En environnement de production, le pipeline
+beneficierait de partitionnement Delta, de workflows orchestres (Databricks Jobs)
+et d'un catalogue Unity Catalog pour la gouvernance des donnees.
