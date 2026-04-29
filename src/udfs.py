@@ -12,6 +12,7 @@ def categorize_consumption(consumption):
     else:
         return "TRES ELEVEE"
 
+
 def compute_carbon_score(consumption_wh, nb_sites):
     if consumption_wh is None or nb_sites is None or nb_sites == 0:
         return None
