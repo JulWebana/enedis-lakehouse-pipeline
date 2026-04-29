@@ -34,6 +34,7 @@ VISUALISATIONS : graphiques matplotlib par KPI
 | Langage principal  | Python 3                          |
 | Source de données  | API Open Data Enedis (REST / CSV) |
 | Visualisations     | Matplotlib                        |
+| CI/CD              | GitHub Actions (flake8, pytest)   |
 
 ---
 
@@ -96,6 +97,32 @@ enedis_pipeline/
 - KPI 2 : Courbe de tendance nationale + barres YoY (vert/rouge selon signe)
 - KPI 3 : Barres horizontales + camembert de répartition
 - KPI 4 : Barres horizontales classées avec ligne de moyenne nationale
+
+---
+
+## Tests unitaires
+
+Les fonctions métier (UDFs) sont testées avec **pytest** :
+
+- `test_categorize_none` — valeur nulle retourne "INCONNU"
+- `test_categorize_tres_faible` — consommation < 1 000 MWh
+- `test_categorize_faible` — consommation < 5 000 MWh
+- `test_categorize_moderee` — consommation < 20 000 MWh
+- `test_categorize_elevee` — consommation < 100 000 MWh
+- `test_categorize_tres_elevee` — consommation > 100 000 MWh
+- `test_carbon_score_none_consumption` — consommation nulle
+- `test_carbon_score_none_sites` — nombre de sites nul
+- `test_carbon_score_zero_sites` — division par zéro
+- `test_carbon_score_valide` — résultat positif attendu
+  
+---
+
+## CI/CD
+
+Un pipeline **GitHub Actions** se déclenche automatiquement à chaque push sur `main` :
+
+- Vérification de la syntaxe avec **flake8**
+- Exécution des **tests unitaires pytest**
 
 ---
 
