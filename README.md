@@ -144,10 +144,10 @@ Un pipeline **GitHub Actions** se déclenche automatiquement à chaque push sur 
 Importer les fichiers `.py` dans Databricks (Workspace > Import), puis exécuter dans l'ordre :
 
 ```
-01_Bronze_Ingestion.py       -> crée les tables bronze_*
-02_Silver_Transformation.py  -> crée les tables silver_*
-03_Gold_Aggregations.py      -> crée les tables kpi_*
-04_Visualisations.py         -> affiche les graphiques
+01_Bronze_Ingestion.py       : crée les tables bronze_*
+02_Silver_Transformation.py  : crée les tables silver_*
+03_Gold_Aggregations.py      : crée les tables kpi_*
+04_Visualisations.py         : affiche les graphiques
 ```
 
 ---
