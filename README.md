@@ -1,7 +1,6 @@
 # Pipeline Data Lakehouse - Données énergétiques Enedis
 
-Pipeline Big Data scalable en architecture Lakehouse (Bronze/Silver/Gold) sur Databricks Community Edition avec PySpark et Delta Lake.
-
+Conception et développement d'un pipeline Big Data scalable en architecture Lakehouse (Bronze/Silver/Gold) sur Databricks (PySpark, Delta Lake). Ingestion via API REST (données Enedis), transformations métier, contrôles de Data Quality (profiling, intégrité, complétude), conformité RGPD et automatisation CI/CD dans un environnement cloud.
 
 ---
 
