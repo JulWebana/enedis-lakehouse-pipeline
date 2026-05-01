@@ -1,6 +1,13 @@
 # Pipeline Data Lakehouse - Données énergétiques Enedis
 
-Conception et développement d'un pipeline Big Data scalable en architecture Lakehouse (Bronze/Silver/Gold) sur Databricks (PySpark, Delta Lake). Ingestion via API REST (données Enedis), transformations métier, contrôles de Data Quality (profiling, intégrité, complétude), conformité RGPD et automatisation CI/CD dans un environnement cloud.
+Conception et développement d’un pipeline scalable en architecture Lakehouse (Bronze / Silver / Gold) :
+- Ingestion via API REST (Open Data Enedis)
+- Transformations métier et structuration des données
+- Mise en place de contrôles de Data Quality (profiling, intégrité, complétude)
+- Conformité RGPD
+- Automatisation CI/CD avec tests unitaires
+
+Production de datasets analytiques fiables pour le suivi des indicateurs énergétiques.
 
 ---
 
