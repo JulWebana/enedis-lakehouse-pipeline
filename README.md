@@ -1,4 +1,4 @@
-# Pipeline Data Lakehouse sur Databricks – Enedis Energy Open Data
+# Data Lakehouse Pipeline on Databricks – Enedis Energy Open Data
 
 Conception et développement d’un pipeline scalable en architecture Lakehouse (Bronze / Silver / Gold) :
 - Ingestion via API REST (Open Data Enedis)
